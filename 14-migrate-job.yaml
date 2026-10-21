@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: platform
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: postgres:16-alpine
+          envFrom:
+            - secretRef:
+                name: db-credentials
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: POSTGRES_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -U "$POSTGRES_USER"; do
+                echo waiting for db
+                sleep 2
+              done
+              psql -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+                -c "CREATE TABLE IF NOT EXISTS tasks (id serial primary key, title text);"
